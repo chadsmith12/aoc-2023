@@ -12,6 +12,13 @@ import (
 	multiarray "github.com/chadsmith12/aoc-2023/multi_array"
 )
 
+type NumberElement struct {
+	start int
+	end   int
+	row   int
+	value int
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Print("Please Input file to read\n")
@@ -21,49 +28,73 @@ func main() {
 
 func solvePart1(file string) {
 	lines := readLines(file)
-	grid := multiarray.New[rune](len(lines)+2, len(lines[0])+2)
-	grid.FillRow(0, '.')
-	grid.FillRow(grid.Rows()-1, '.')
+	grid := createGrid(lines)
+	var numbers []NumberElement
+
+	for row := 0; row < grid.Rows(); row++ {
+		rowNumbers := readNumbers(grid.Row(row), row)
+		numbers = append(numbers, rowNumbers...)
+	}
+
+	var partNumbers []int
+	for _, number := range numbers {
+		if hasSymbolAround(number, grid) {
+			partNumbers = append(partNumbers, number.value)
+		}
+	}
+
+	fmt.Printf("The solution to part 1 is %d\n", sum(partNumbers))
+}
+
+func createGrid(lines []string) *multiarray.TwoDArray[rune] {
+	grid := multiarray.New[rune](len(lines), len(lines[0]))
+
 	for i, line := range lines {
 		for j, value := range line {
-			if j == 0 {
-				grid.Set(i+1, 0, '.')
-			}
-			grid.Set(i+1, j+1, value)
-			if j == len(line)-1 {
-				grid.Set(i+1, j+2, '.')
-			}
+			grid.Set(i, j, value)
 		}
 	}
+	return grid
+}
 
-	numbers := make([]int, 0)
+func readNumbers(row []rune, rowNumber int) []NumberElement {
 	var numberBuilder strings.Builder
-	for row := 0; row < grid.Rows(); row++ {
-		for col := 0; col < grid.Cols(); col++ {
-			// not a number anymore, need to see if we built one out
-			if !unicode.IsDigit(grid.Get(row, col)) {
-				// we weren't building a number out, we can't just continue
-				if numberBuilder.Len() == 0 {
-					continue
-				}
-				// we are done building this number
-				partNumber, _ := strconv.Atoi(numberBuilder.String())
-				previousRow := grid.Row(row - 1)
-				nextRow := grid.Row(row + 1)
-				starting := col - numberBuilder.Len()
+	start := 0
+	numbers := make([]NumberElement, 0)
 
-				if isAdjacent(numberBuilder.Len(), starting, col, grid.Row(row), previousRow, nextRow, partNumber) {
-					numbers = append(numbers, partNumber)
-				}
-				numberBuilder.Reset()
-			} else {
-				numberBuilder.WriteRune(grid.Get(row, col))
+	for i, char := range row {
+		if !unicode.IsDigit(char) {
+			if numberBuilder.Len() == 0 {
+				continue
 			}
+			partNumber, _ := strconv.Atoi(numberBuilder.String())
+			numberElem := NumberElement{
+				value: partNumber,
+				row:   rowNumber,
+				start: start,
+				end:   i,
+			}
+			numbers = append(numbers, numberElem)
+			numberBuilder.Reset()
+		} else {
+			if numberBuilder.Len() == 0 {
+				start = i
+			}
+			numberBuilder.WriteRune(char)
 		}
 	}
+	if numberBuilder.Len() != 0 {
+		number, _ := strconv.Atoi(numberBuilder.String())
+		numberElem := NumberElement{
+			value: number,
+			row:   rowNumber,
+			start: start,
+			end:   len(row),
+		}
+		numbers = append(numbers, numberElem)
+	}
 
-	//fmt.Printf("%v\n", numbers)
-	fmt.Printf("The solution to part 1 is %d\n", sum(numbers))
+	return numbers
 }
 
 func sum(s []int) int {
@@ -85,27 +116,54 @@ func lineHasSymbol(window []rune) bool {
 	return false
 }
 
-func isAdjacent(lenth int, starting, end int, currentRow, previousRow, nextRow []rune, partNumber int) bool {
-	startingIndex := starting - 1
-	endingIndex := end
-	if currentRow[starting-1] != '.' {
+func hasSymbolAround(number NumberElement, grid *multiarray.TwoDArray[rune]) bool {
+	// check around current around to see if it's beside it
+	row := grid.Row(number.row)
+	if number.start > 0 && row[number.start-1] != '.' {
 		return true
 	}
-	if currentRow[end] != '.' {
-		return true
-	}
-
-	previousWindow := previousRow[startingIndex : endingIndex+1]
-	if lineHasSymbol(previousWindow) {
+	if number.end < len(row) && row[number.end] != '.' {
 		return true
 	}
 
-	nextWindow := nextRow[startingIndex : endingIndex+1]
-	if lineHasSymbol(nextWindow) {
-		return true
+	// check to see if we can check the previous row
+	if number.row != 0 {
+		prevRow := grid.Row(number.row - 1)
+		start := clampAbove(number.start-1, 0)
+		end := clampBelow(number.end+1, len(prevRow))
+		window := prevRow[start:end]
+		if lineHasSymbol(window) {
+			return true
+		}
+	}
+
+	if number.row < grid.Rows()-1 {
+		nextRow := grid.Row(number.row + 1)
+		start := clampAbove(number.start-1, 0)
+		end := clampBelow(number.end+1, len(nextRow))
+		window := nextRow[start:end]
+		if lineHasSymbol(window) {
+			return true
+		}
 	}
 
 	return false
+}
+
+func clampAbove(value, clampTo int) int {
+	if value < clampTo {
+		return clampTo
+	}
+
+	return value
+}
+
+func clampBelow(value, clampTo int) int {
+	if value > clampTo {
+		return clampTo
+	}
+
+	return value
 }
 
 func readLines(file string) []string {
