@@ -19,11 +19,17 @@ type NumberElement struct {
 	value int
 }
 
+type Point struct {
+	row int
+	col int
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Print("Please Input file to read\n")
 	}
 	solvePart1(os.Args[1])
+	solvePart2(os.Args[1])
 }
 
 func solvePart1(file string) {
@@ -44,6 +50,43 @@ func solvePart1(file string) {
 	}
 
 	fmt.Printf("The solution to part 1 is %d\n", sum(partNumbers))
+}
+
+func solvePart2(file string) {
+	lines := readLines(file)
+	grid := createGrid(lines)
+	var numbers []NumberElement
+	var gears []Point
+
+	for row := 0; row < grid.Rows(); row++ {
+		rowNumbers := readNumbers(grid.Row(row), row)
+		gearPositions := findGearPositions(grid.Row(row), row)
+		numbers = append(numbers, rowNumbers...)
+		gears = append(gears, gearPositions...)
+	}
+
+	totalSum := 0
+	for _, gearPos := range gears {
+		var foundNumbers []NumberElement
+		for _, number := range numbers {
+			if touchesGear(number, gearPos) {
+				foundNumbers = append(foundNumbers, number)
+			}
+			if len(foundNumbers) == 2 {
+				break
+			}
+		}
+		if len(foundNumbers) == 2 {
+			totalSum += foundNumbers[0].value * foundNumbers[1].value
+		}
+	}
+
+	fmt.Printf("Solution for part 2 is %d\n", totalSum)
+}
+
+func touchesGear(number NumberElement, star Point) bool {
+	return (star.row >= number.row-1 && star.row <= number.row+1) &&
+		(star.col >= number.start-1 && star.col <= number.end)
 }
 
 func createGrid(lines []string) *multiarray.TwoDArray[rune] {
@@ -104,6 +147,18 @@ func sum(s []int) int {
 	}
 
 	return sum
+}
+
+func findGearPositions(row []rune, rowNumber int) []Point {
+	positions := make([]Point, 0)
+
+	for col, char := range row {
+		if char == '*' {
+			positions = append(positions, Point{row: rowNumber, col: col})
+		}
+	}
+
+	return positions
 }
 
 func lineHasSymbol(window []rune) bool {
